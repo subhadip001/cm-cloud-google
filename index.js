@@ -32,7 +32,7 @@ app.use(
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const REDIRECT_URI = "http://localhost:8000/google/redirect";
+const REDIRECT_URI = process.env.REDIRECT_URI;
 
 const oauth2Client = new google.auth.OAuth2(
   CLIENT_ID,
@@ -136,6 +136,25 @@ app.get("/logout", (req, res) => {
 //------------------Computaional Routes------------------//
 
 app.get("/readDrive", async (req, res) => {
+  const token = req.cookies.access_token;
+
+  if (!token) {
+    res.json({ authenticated: false });
+    return;
+  }
+
+  jwt.verify(token, "my-secret-key", async (err, decoded) => {
+    if (err) {
+      res.json({ authenticated: false });
+    } else {
+      oauth2Client.setCredentials({
+        id_token: decoded.googleId,
+        access_token: decoded.accessToken,
+        refresh_token: decoded.refreshToken,
+      });
+    }
+  });
+
   const drive = google.drive({
     version: "v3",
     auth: oauth2Client,
@@ -466,7 +485,7 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                 try {
                   await uploadFileHandler(
                     outputPath,
-                    `${fileName}-opt-${Date.now()}.${newFileExtension}`,
+                    `opt-${fileName}`,
                     "video/mp4",
                     req.cookies.access_token
                   );
@@ -486,6 +505,10 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                           newStatus: "idle",
                         });
                       console.log(updateStatusResponseOptimised.data);
+                      res.json({
+                        success: true,
+                        message: "Optimisation complete",
+                      });
                     } catch (error) {
                       console.log(error.message);
                     }
@@ -513,7 +536,7 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                 try {
                   await uploadFileHandler(
                     outputPath,
-                    `${fileName}-opt-${Date.now()}.${newFileExtension}`,
+                    `opt-${fileName}`,
                     "image/webp",
                     req.cookies.access_token
                   );
@@ -534,6 +557,10 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                           newStatus: "idle",
                         });
                       console.log(updateStatusResponseOptimised.data);
+                      res.json({
+                        success: true,
+                        message: "Optimisation complete",
+                      });
                     } catch (error) {
                       console.log(error.message);
                     }
@@ -555,7 +582,7 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
 
                   await uploadFileHandler(
                     outputPath,
-                    `${fileName}-opt-${Date.now()}.${newFileExtension}`,
+                    `opt-${fileName}`,
                     "application/pdf",
                     req.cookies.access_token
                   );
@@ -576,6 +603,10 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                           newStatus: "idle",
                         });
                       console.log(updateStatusResponseOptimised.data);
+                      res.json({
+                        success: true,
+                        message: "Optimisation complete",
+                      });
                     } catch (error) {
                       console.log(error.message);
                     }
@@ -810,6 +841,7 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
                     console.log(updateStatusResponseIdle.data);
                   } catch (error) {
                     console.log(error.message);
+                    res.status(500).json({ error: "Internal server error" });
                   }
                 }
               } catch (error) {
@@ -883,18 +915,18 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
   });
 });
 
-if(cluster.isMaster){
+if (cluster.isMaster) {
   console.log(`Master ${process.pid} is running`);
 
-  for(let i = 0; i < numCPUs; i++){
+  for (let i = 0; i < numCPUs; i++) {
     cluster.fork();
   }
 
-  cluster.on('exit', (worker, code, signal) => {
+  cluster.on("exit", (worker, code, signal) => {
     console.log(`worker ${worker.process.pid} died`);
     cluster.fork();
-  })
-}else{
+  });
+} else {
   app.listen(8000, () => {
     console.log(`Server started using ${process.pid} on port 8000`);
   });
