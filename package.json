@@ -1,0 +1,31 @@
+{
+  "name": "g-drive",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js,",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.1",
+    "axios": "^1.4.0",
+    "body-parser": "^1.20.2",
+    "compress-pdf": "^0.3.7",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "fluent-ffmpeg": "^2.1.2",
+    "googleapis": "^123.0.0",
+    "jsonwebtoken": "^9.0.1",
+    "nodemon": "^3.0.1",
+    "sharp": "^0.32.4",
+    "zlib": "^1.0.5"
+  }
+}

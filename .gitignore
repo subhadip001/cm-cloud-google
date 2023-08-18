@@ -1,0 +1,6 @@
+node_modules
+.env
+dropbox.js
+indexTest.js
+worker.js
+test.js
