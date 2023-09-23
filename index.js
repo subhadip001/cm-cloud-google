@@ -12,9 +12,9 @@ const cluster = require("cluster");
 const os = require("os");
 const numCPUs = os.cpus().length;
 
-const { ffmpegVideoEncodingHandler } = require("./videoEncoder");
-const { sharpEncodingHandler } = require("./sharp");
-const { pdfEncodingHandler } = require("./pdfEncoder");
+const { ffmpegVideoEncodingHandler } = require("./encoders/videoEncoder");
+const { sharpEncodingHandler } = require("./encoders/sharp");
+const { pdfEncodingHandler } = require("./encoders/pdfEncoder");
 const axiosClient = require("./axiosClient");
 require("dotenv").config();
 
@@ -70,8 +70,15 @@ app.get("/google/redirect", async (req, res) => {
   const token = jwt.sign(user, "my-secret-key");
 
   // Set the JWT token as an HTTP-only cookie
-  res.cookie("access_token", token, { httpOnly: true });
-  res.redirect("http://localhost:5000/googleCloud");
+  res.cookie("access_token", token, { httpOnly: true , sameSite:"none", secure: true});
+  const closePopupScript = `
+    <script>
+      window.opener.postMessage('authSuccess', '*');
+      window.close(); 
+    </script>
+  `;
+
+  res.send(closePopupScript);
 });
 
 app.get("/checkAuth", (req, res) => {
@@ -146,6 +153,7 @@ app.get("/readDrive", async (req, res) => {
   jwt.verify(token, "my-secret-key", async (err, decoded) => {
     if (err) {
       res.json({ authenticated: false });
+      return;
     } else {
       oauth2Client.setCredentials({
         id_token: decoded.googleId,
@@ -159,35 +167,51 @@ app.get("/readDrive", async (req, res) => {
     version: "v3",
     auth: oauth2Client,
   });
-  const response = await drive.files.list({
-    pageSize: 10,
-    fields:
-      "nextPageToken, files(id, name, webViewLink, mimeType, size, createdTime, modifiedTime, iconLink, parents, owners, webContentLink, hasThumbnail, thumbnailLink)",
-    q: "'me' in owners and mimeType != 'application/vnd.google-apps.folder'",
-  });
 
-  const filesInRoot = response.data.files;
+  const pageSize = 6;
 
-  const folderResponse = await drive.files.list({
-    pageSize: 10,
-    fields: "nextPageToken, files(id, name, parents)",
-    q: "'me' in owners and mimeType = 'application/vnd.google-apps.folder'",
-  });
+  const { pageToken } = req.query;
 
-  const folderFiles = [];
-  for (const folder of folderResponse.data.files) {
-    const filesInsideFolderResponse = await drive.files.list({
-      pageSize: 10,
+  try {
+    const response = await drive.files.list({
+      pageSize: pageSize,
       fields:
         "nextPageToken, files(id, name, webViewLink, mimeType, size, createdTime, modifiedTime, iconLink, parents, owners, webContentLink, hasThumbnail, thumbnailLink)",
-      q: `'${folder.id}' in parents`,
+      q: "'me' in owners and mimeType != 'application/vnd.google-apps.folder'",
+      pageToken: pageToken ? pageToken : null,
     });
-    folderFiles.push(...filesInsideFolderResponse.data.files);
+
+    const filesInRoot = response.data.files;
+
+    // const folderResponse = await drive.files.list({
+    //   pageSize: pageSize,
+    //   fields: "nextPageToken, files(id, name, parents)",
+    //   q: "'me' in owners and mimeType = 'application/vnd.google-apps.folder'",
+    //   pageToken: pageToken ? pageToken : null,
+    // });
+
+    // const folderFiles = [];
+    // for (const folder of folderResponse.data.files) {
+    //   const filesInsideFolderResponse = await drive.files.list({
+    //     pageSize: pageSize,
+    //     fields:
+    //       "nextPageToken, files(id, name, webViewLink, mimeType, size, createdTime, modifiedTime, iconLink, parents, owners, webContentLink, hasThumbnail, thumbnailLink)",
+    //     q: `'${folder.id}' in parents`,
+    //     pageToken: pageToken ? pageToken : null,
+    //   });
+    //   folderFiles.push(...filesInsideFolderResponse.data.files);
+    // }
+
+    const allFiles = [...filesInRoot];
+
+    res.json({
+      success: true,
+      files: allFiles,
+      nextPageToken: response.data.nextPageToken,
+    });
+  } catch (error) {
+    console.log("Error : " + error.message);
   }
-
-  const allFiles = [...filesInRoot, ...folderFiles];
-
-  res.json({ success: true, files: allFiles });
 });
 
 app.get("/upload", async (req, res) => {
@@ -211,7 +235,7 @@ app.get("/upload", async (req, res) => {
 
     console.log(response.data);
   } catch (error) {
-    console.log(error.message);
+    throw new Error(error.message);
   }
 });
 
@@ -227,7 +251,7 @@ app.post("/delete", async (req, res) => {
     });
     console.log(response.data, response.status);
   } catch (error) {
-    console.log(error.message);
+    throw new Error(error.message);
   }
 });
 
@@ -268,7 +292,7 @@ const uploadFileHandler = async (filePath, fileName, mimeType, token) => {
           console.log("New File uploaded successfully");
           resolve();
         } catch (error) {
-          console.log(error.message);
+          throw new Error(error.message);
           reject(error);
         }
       }
@@ -287,7 +311,7 @@ const deleteFileHandler = async (fileId) => {
     });
     console.log("Old File deleted successfully");
   } catch (error) {
-    console.log(error.message);
+    throw new Error(error.message);
   }
 };
 
@@ -376,9 +400,13 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
     return;
   }
 
+  const totalFiles = fileIds.length;
+  let completedFiles = 0;
+
   jwt.verify(token, "my-secret-key", async (err, decoded) => {
     if (err) {
       res.json({ authenticated: false });
+      return;
     } else {
       oauth2Client.setCredentials({
         id_token: decoded.googleId,
@@ -394,239 +422,220 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
       });
 
       try {
-        const updateStatusResponseOptimised = await axiosClient.post(
-          "/updateCloudAccountStatus",
-          {
-            phone: phone,
-            cloudName: cloudName,
-            newStatus: "optimising",
-          }
-        );
-        console.log(updateStatusResponseOptimised.data);
+        await axiosClient.post("/updateCloudAccountStatus", {
+          phone: phone,
+          cloudName: cloudName,
+          newStatus: "optimising",
+        });
+        console.log("Status updated to optimising");
       } catch (error) {
-        console.log(error.message);
+        throw new Error(error.message);
       }
 
-      for (let i = 0; i < fileIds.length; i++) {
-        try {
-          const fileMetadata = await drive.files.get({
-            fileId: fileIds[i],
-            fields: "name, mimeType",
-          });
+      try {
+        for (let i = 0; i < fileIds.length; i++) {
+          try {
+            const fileMetadata = await drive.files.get({
+              fileId: fileIds[i],
+              fields: "name, mimeType",
+            });
 
-          const fileName = fileMetadata.data.name;
-          const fileExtension = fileMetadata.data.mimeType.split("/").pop();
-          const videoFilePath = `downloaded/videos/${fileName}-${Date.now()}.mp4`;
-          const imageFilePath = `downloaded/images/${fileName}-${Date.now()}.${fileExtension}`;
-          const pdfFilePath = `downloaded/pdfs/${fileName}-${Date.now()}.${fileExtension}`;
+            const fileName = fileMetadata.data.name;
+            const fileExtension = fileMetadata.data.mimeType.split("/").pop();
+            const videoFilePath = `downloaded/videos/${fileName}`;
+            const imageFilePath = `downloaded/images/${fileName}`;
+            const pdfFilePath = `downloaded/pdfs/${fileName}`;
 
-          let dest;
+            let dest;
 
-          console.log(fileExtension);
+            console.log(fileExtension);
 
-          if (fileExtension === "mp4" || fileExtension === "mpeg") {
-            dest = fs.createWriteStream(videoFilePath);
-          } else if (
-            fileExtension === "jpg" ||
-            fileExtension === "png" ||
-            fileExtension === "jpeg" ||
-            fileExtension === "heic" ||
-            fileExtension === "HEIC" ||
-            fileExtension === "HEIF" ||
-            fileExtension === "heif"
-          ) {
-            dest = fs.createWriteStream(imageFilePath);
-          } else if (fileExtension === "pdf") {
-            dest = fs.createWriteStream(pdfFilePath);
-          } else {
-            console.log("File type not supported, Skipping...");
-            if (i === fileIds.length - 1) {
-              try {
-                const updateStatusResponseOptimised = await axiosClient.post(
-                  "/updateCloudAccountStatus",
-                  {
-                    phone: phone,
-                    cloudName: cloudName,
-                    newStatus: "idle",
-                  }
-                );
-                console.log(updateStatusResponseOptimised.data);
-              } catch (error) {
-                console.log(error.message);
-              }
-              res.json({
-                message:
-                  "single or multiple file type is not supported, skipped.",
-              });
+            if (
+              fileExtension === "mp4" ||
+              fileExtension === "mpeg" ||
+              fileExtension === "mov" ||
+              fileExtension === "x-matroska" ||
+              fileExtension === "mkv"
+            ) {
+              dest = fs.createWriteStream(videoFilePath);
+            } else if (
+              fileExtension === "jpg" ||
+              fileExtension === "png" ||
+              fileExtension === "jpeg" ||
+              fileExtension === "heic" ||
+              fileExtension === "HEIC" ||
+              fileExtension === "HEIF" ||
+              fileExtension === "heif"
+            ) {
+              dest = fs.createWriteStream(imageFilePath);
+            } else if (fileExtension === "pdf") {
+              dest = fs.createWriteStream(pdfFilePath);
+            } else {
+              console.log("File type not supported, Skipping...");
+              completedFiles++;
+              continue;
             }
 
-            continue;
+            const response = await drive.files.get(
+              {
+                fileId: fileIds[i],
+                alt: "media",
+              },
+              { responseType: "stream" }
+            );
+
+            response.data
+              .on("end", async () => {
+                console.log("Download complete");
+
+                let newFileExtension;
+                if (
+                  fileExtension === "mp4" ||
+                  fileExtension === "mpeg" ||
+                  fileExtension === "mov" ||
+                  fileExtension === "x-matroska" ||
+                  fileExtension === "mkv"
+                ) {
+                  newFileExtension = "mp4";
+
+                  try {
+                    const inputPath = videoFilePath;
+                    const outputPath = `optimised/videos/opt-${fileName}`;
+                    await ffmpegVideoEncodingHandler(
+                      inputPath,
+                      outputPath,
+                      fileExtension
+                    );
+                    try {
+                      await uploadFileHandler(
+                        outputPath,
+                        `opt-${fileName}`,
+                        "video/mp4",
+                        req.cookies.access_token
+                      );
+
+                      if (autoDelete) {
+                        await deleteFileHandler(fileIds[i]);
+                      }
+                      fs.unlinkSync(inputPath);
+                      fs.unlinkSync(outputPath);
+
+                      completedFiles++;
+                    } catch (error) {
+                      completedFiles++;
+                      console.log(error.message);
+                    }
+                  } catch (error) {
+                    completedFiles++;
+                    console.log(error.message);
+                  }
+
+                  //deleteFileHandler(fileIds[i]);
+                } else if (
+                  fileExtension === "jpg" ||
+                  fileExtension === "png" ||
+                  fileExtension === "jpeg" ||
+                  fileExtension === "heic" ||
+                  fileExtension === "HEIC" ||
+                  fileExtension === "HEIF" ||
+                  fileExtension === "heif"
+                ) {
+                  newFileExtension = fileExtension;
+                  const inputPath = imageFilePath;
+                  console.log(inputPath);
+                  const outputPath = `optimised/images/opt-${fileName}`;
+
+                  try {
+                    await sharpEncodingHandler(inputPath, outputPath);
+                    await uploadFileHandler(
+                      outputPath,
+                      `opt-${fileName}`,
+                      "image/webp",
+                      req.cookies.access_token
+                    );
+
+                    if (autoDelete) {
+                      await deleteFileHandler(fileIds[i]);
+                    }
+
+                    fs.unlinkSync(inputPath);
+                    fs.unlinkSync(outputPath);
+
+                    completedFiles++;
+                  } catch (error) {
+                    completedFiles++;
+                    console.log(error.message);
+                  }
+
+                  //deleteFileHandler(fileIds[i]);
+                } else if (fileExtension === "pdf") {
+                  newFileExtension = "pdf";
+                  const inputPath = pdfFilePath;
+                  const outputPath = `optimised/pdfs/opt-${fileName}`;
+                  try {
+                    const response = await pdfEncodingHandler(
+                      inputPath,
+                      outputPath
+                    );
+
+                    await uploadFileHandler(
+                      outputPath,
+                      `opt-${fileName}`,
+                      "application/pdf",
+                      req.cookies.access_token
+                    );
+
+                    if (autoDelete) {
+                      await deleteFileHandler(fileIds[i]);
+                    }
+
+                    fs.unlinkSync(inputPath);
+                    fs.unlinkSync(outputPath);
+
+                    completedFiles++;
+                  } catch (error) {
+                    completedFiles++;
+                    console.log(error.message);
+                  }
+
+                  //deleteFileHandler(fileIds[i]);
+                }
+              })
+              .on("error", (err) => {
+                console.log("Error during download", err);
+                completedFiles++;
+              })
+              .pipe(dest);
+          } catch (error) {
+            console.log(error.message);
           }
-
-          const response = await drive.files.get(
-            {
-              fileId: fileIds[i],
-              alt: "media",
-            },
-            { responseType: "stream" }
-          );
-
-          response.data
-            .on("end", async () => {
-              console.log("Download complete");
-              res.json({ message: "Optimisation Started" });
-
-              let newFileExtension;
-              if (fileExtension === "mp4" || fileExtension === "mpeg") {
-                newFileExtension = "mp4";
-                const inputPath = videoFilePath;
-                const outputPath = `optimised/videos/opt-${fileName}`;
-                await ffmpegVideoEncodingHandler(inputPath, outputPath);
-                try {
-                  await uploadFileHandler(
-                    outputPath,
-                    `opt-${fileName}`,
-                    "video/mp4",
-                    req.cookies.access_token
-                  );
-
-                  if (autoDelete) {
-                    await deleteFileHandler(fileIds[i]);
-                  }
-                  fs.unlinkSync(inputPath);
-                  fs.unlinkSync(outputPath);
-
-                  if (i === fileIds.length - 1) {
-                    try {
-                      const updateStatusResponseOptimised =
-                        await axiosClient.post("/updateCloudAccountStatus", {
-                          phone: phone,
-                          cloudName: cloudName,
-                          newStatus: "idle",
-                        });
-                      console.log(updateStatusResponseOptimised.data);
-                      res.json({
-                        success: true,
-                        message: "Optimisation complete",
-                      });
-                    } catch (error) {
-                      console.log(error.message);
-                    }
-                  }
-                } catch (error) {
-                  console.log(error.message);
-                }
-
-                //deleteFileHandler(fileIds[i]);
-              } else if (
-                fileExtension === "jpg" ||
-                fileExtension === "png" ||
-                fileExtension === "jpeg" ||
-                fileExtension === "heic" ||
-                fileExtension === "HEIC" ||
-                fileExtension === "HEIF" ||
-                fileExtension === "heif"
-              ) {
-                newFileExtension = "webp";
-                const inputPath = imageFilePath;
-                console.log(inputPath);
-                const outputPath = `optimised/images/opt-${fileName}`;
-                await sharpEncodingHandler(inputPath, outputPath);
-
-                try {
-                  await uploadFileHandler(
-                    outputPath,
-                    `opt-${fileName}`,
-                    "image/webp",
-                    req.cookies.access_token
-                  );
-
-                  if (autoDelete) {
-                    await deleteFileHandler(fileIds[i]);
-                  }
-
-                  fs.unlinkSync(inputPath);
-                  fs.unlinkSync(outputPath);
-
-                  if (i === fileIds.length - 1) {
-                    try {
-                      const updateStatusResponseOptimised =
-                        await axiosClient.post("/updateCloudAccountStatus", {
-                          phone: phone,
-                          cloudName: cloudName,
-                          newStatus: "idle",
-                        });
-                      console.log(updateStatusResponseOptimised.data);
-                      res.json({
-                        success: true,
-                        message: "Optimisation complete",
-                      });
-                    } catch (error) {
-                      console.log(error.message);
-                    }
-                  }
-                } catch (error) {
-                  console.log(error.message);
-                }
-
-                //deleteFileHandler(fileIds[i]);
-              } else if (fileExtension === "pdf") {
-                newFileExtension = "pdf";
-                const inputPath = pdfFilePath;
-                const outputPath = `optimised/pdfs/opt-${fileName}`;
-                try {
-                  const response = await pdfEncodingHandler(
-                    inputPath,
-                    outputPath
-                  );
-
-                  await uploadFileHandler(
-                    outputPath,
-                    `opt-${fileName}`,
-                    "application/pdf",
-                    req.cookies.access_token
-                  );
-
-                  if (autoDelete) {
-                    await deleteFileHandler(fileIds[i]);
-                  }
-
-                  fs.unlinkSync(inputPath);
-                  fs.unlinkSync(outputPath);
-
-                  if (i === fileIds.length - 1) {
-                    try {
-                      const updateStatusResponseOptimised =
-                        await axiosClient.post("/updateCloudAccountStatus", {
-                          phone: phone,
-                          cloudName: cloudName,
-                          newStatus: "idle",
-                        });
-                      console.log(updateStatusResponseOptimised.data);
-                      res.json({
-                        success: true,
-                        message: "Optimisation complete",
-                      });
-                    } catch (error) {
-                      console.log(error.message);
-                    }
-                  }
-                } catch (error) {
-                  console.log(error.message);
-                }
-
-                //deleteFileHandler(fileIds[i]);
-              }
-            })
-            .on("error", (err) => {
-              console.log("Error during download", err);
-              res.status(500).json({ error: "Error during download" });
-            })
-            .pipe(dest);
-        } catch (error) {
-          console.log(error.message);
-          res.status(500).json({ error: "Error during download" });
         }
+
+        const intervalId = setInterval(() => {
+          if (completedFiles === totalFiles) {
+            console.log(completedFiles + "/" + totalFiles);
+            clearInterval(intervalId);
+            try {
+              const updateStatusResponseOptimised = axiosClient.post(
+                "/updateCloudAccountStatus",
+                {
+                  phone: phone,
+                  cloudName: cloudName,
+                  newStatus: "idle",
+                }
+              );
+              console.log("Status updated to idle");
+              res.json({
+                success: true,
+                message: "Optimisation complete",
+              });
+            } catch (error) {
+              throw new Error(error.message);
+            }
+          }
+        }, 1000);
+      } catch (error) {
+        console.log(error.message);
       }
     }
   });
@@ -636,6 +645,7 @@ app.get("/getMediaItems", async (req, res) => {
   try {
     // Read the JWT token from the HTTP-only cookie
     const token = req.cookies.access_token;
+    
 
     if (!token) {
       res.json({ authenticated: false });
@@ -645,6 +655,7 @@ app.get("/getMediaItems", async (req, res) => {
     jwt.verify(token, "my-secret-key", async (err, decoded) => {
       if (err) {
         res.json({ authenticated: false });
+        return;
       } else {
         // Token is valid, user is authenticated
         oauth2Client.setCredentials({
@@ -667,6 +678,7 @@ app.get("/getMediaItems", async (req, res) => {
         );
 
         //console.log(albumResponse.data);
+        const {pageToken} = req.query;
 
         const albums = albumResponse.data.albums;
 
@@ -678,26 +690,21 @@ app.get("/getMediaItems", async (req, res) => {
             },
             params: {
               pageSize: 20,
+              pageToken: pageToken ? pageToken : "",
             },
           }
         );
 
-        //console.log(mediaItemsResponse.data);
-        const mediaItems = mediaItemsResponse.data.mediaItems;
+        console.log(mediaItemsResponse.data);
 
-        // download media items in a specific path to local storage
-
-        // List all albums
         //const albums = await photos.albums.list();
 
-        // Or get a specific album by ID
         //const album = await photos.albums.get('ALBUM_ID');
 
-        // You can also list all media items in an album
         //const mediaItems = await photos.albums.listMediaItems('ALBUM_ID');
 
         // Send response to client with listed albums
-        res.json({ success: true, albums: albums, mediaItems: mediaItems });
+        res.json({ success: true, albums: albums, mediaItems: mediaItemsResponse?.data?.mediaItems , nextPageToken: mediaItemsResponse?.data?.nextPageToken });
       }
     });
   } catch (error) {
@@ -737,9 +744,13 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
     return;
   }
 
+  const totalMediaItems = mediaItemIds.length;
+  let completedMediaItems = 0;
+
   jwt.verify(token, "my-secret-key", async (err, decoded) => {
     if (err) {
       res.json({ authenticated: false });
+      return;
     } else {
       oauth2Client.setCredentials({
         id_token: decoded.googleId,
@@ -759,9 +770,9 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
           }
         );
 
-        console.log(updateStatusResponseOptimising.data);
+        console.log("Status updated to optimising");
       } catch (error) {
-        console.log(error.message);
+        throw new Error(error.message);
       }
 
       try {
@@ -779,7 +790,13 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
           const filename = response.data.filename;
           const fileExtension = response.data.mimeType.split("/").pop();
 
-          if (fileExtension === "mp4" || fileExtension === "mpeg") {
+          if (
+            fileExtension === "mp4" ||
+            fileExtension === "mpeg" ||
+            fileExtension === "mov" ||
+            fileExtension === "x-matroska" ||
+            fileExtension === "mkv"
+          ) {
             downloadUrl = response.data.baseUrl + "=dv";
           } else {
             downloadUrl = response.data.baseUrl + "=d";
@@ -813,8 +830,9 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
 
               const inputPath = filePath;
               const outputPath = `optimised/images/opt-${filename}`;
-              await sharpEncodingHandler(inputPath, outputPath);
+
               try {
+                await sharpEncodingHandler(inputPath, outputPath);
                 await uploadPhotosLibraryHandler(
                   outputPath,
                   `opt-${filename}`,
@@ -824,33 +842,41 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
                 fs.unlinkSync(filePath);
                 fs.unlinkSync(outputPath);
 
-                if (i === mediaItemIds.length - 1) {
-                  try {
-                    const updateStatusResponseIdle = await axiosClient.post(
-                      "/updateCloudAccountStatus",
-                      {
-                        phone: phone,
-                        cloudName: cloudName,
-                        newStatus: "idle",
-                      }
-                    );
-                    res.status(201).json({
-                      success: true,
-                      message: "Optimisation complete",
-                    });
-                    console.log(updateStatusResponseIdle.data);
-                  } catch (error) {
-                    console.log(error.message);
-                    res.status(500).json({ error: "Internal server error" });
-                  }
-                }
+                // if (i === mediaItemIds.length - 1) {
+                //   try {
+                //     const updateStatusResponseIdle = await axiosClient.post(
+                //       "/updateCloudAccountStatus",
+                //       {
+                //         phone: phone,
+                //         cloudName: cloudName,
+                //         newStatus: "idle",
+                //       }
+                //     );
+                //     res.status(201).json({
+                //       success: true,
+                //       message: "Optimisation complete",
+                //     });
+                //     console.log(updateStatusResponseIdle.data);
+                //   } catch (error) {
+                //     throw new Error(error.message);
+                //   }
+                // }
+
+                completedMediaItems++;
               } catch (error) {
+                completedMediaItems++;
                 console.log(error.message);
                 fs.unlinkSync(filePath);
                 fs.unlinkSync(outputPath);
               }
             });
-          } else if (fileExtension === "mp4" || fileExtension === "mpeg") {
+          } else if (
+            fileExtension === "mp4" ||
+            fileExtension === "mpeg" ||
+            fileExtension === "mov" ||
+            fileExtension === "x-matroska" ||
+            fileExtension === "mkv"
+          ) {
             const filePath = `downloaded/videos/${filename}`;
             const writeFile = fs.createWriteStream(filePath);
 
@@ -861,55 +887,87 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
 
               const inputPath = filePath;
               const outputPath = `optimised/videos/${filename}`;
-              await ffmpegVideoEncodingHandler(inputPath, outputPath);
+
               try {
+                await ffmpegVideoEncodingHandler(
+                  inputPath,
+                  outputPath,
+                  fileExtension
+                );
                 await uploadPhotosLibraryHandler(
                   outputPath,
                   `opt-${filename}`,
                   "video/mp4",
                   req.cookies.access_token
                 );
-                fs.unlinkSync(filePath);
-                fs.unlinkSync(outputPath);
+                // fs.unlinkSync(filePath);
+                // fs.unlinkSync(outputPath);
 
-                if (i === mediaItemIds.length - 1) {
-                  try {
-                    const updateStatusResponseIdle = await axiosClient.post(
-                      "/updateCloudAccountStatus",
-                      {
-                        phone: phone,
-                        cloudName: cloudName,
-                        newStatus: "idle",
-                      }
-                    );
-                    res.status(201).json({
-                      success: true,
-                      message: "Optimisation complete",
-                    });
-                    console.log(updateStatusResponseIdle.data);
-                  } catch (error) {
-                    console.log(error.message);
-                  }
-                }
+                // if (i === mediaItemIds.length - 1) {
+                //   try {
+                //     const updateStatusResponseIdle = await axiosClient.post(
+                //       "/updateCloudAccountStatus",
+                //       {
+                //         phone: phone,
+                //         cloudName: cloudName,
+                //         newStatus: "idle",
+                //       }
+                //     );
+                //     res.status(201).json({
+                //       success: true,
+                //       message: "Optimisation complete",
+                //     });
+                //     console.log(updateStatusResponseIdle.data);
+                //   } catch (error) {
+                //     throw new Error(error.message);
+                //   }
+                // }
+
+                completedMediaItems++;
               } catch (error) {
-                console.log(error.message);
-                fs.unlinkSync(filePath);
-                fs.unlinkSync(outputPath);
+                completedMediaItems++;
+                throw new Error(error.message);
               }
             });
           } else {
             console.log(fileExtension);
             console.log("File type not supported, Skipping...");
+            completedMediaItems++;
           }
 
           downloadResponse.data.on("error", (err) => {
             console.log("Error during download", err);
-            res.status(500).json({ error: "Error during download" });
+            completedMediaItems++;
           });
         }
+
+        console.log(completedMediaItems, totalMediaItems);
+
+        const intervalId = setInterval(async () => {
+          console.log(completedMediaItems + "/" + totalMediaItems);
+          if (completedMediaItems === totalMediaItems) {
+            try {
+              const updateStatusResponseIdle = await axiosClient.post(
+                "/updateCloudAccountStatus",
+                {
+                  phone: phone,
+                  cloudName: cloudName,
+                  newStatus: "idle",
+                }
+              );
+              res.status(201).json({
+                success: true,
+                message: "Optimisation complete",
+              });
+              console.log(updateStatusResponseIdle.data);
+            } catch (error) {
+              console.log(error.message);
+            }
+            clearInterval(intervalId);
+          }
+        }, 2000);
       } catch (error) {
         console.log(error.message);
-        res.status(500).json({ error: "Error during download" });
       }
     }
   });
@@ -931,3 +989,7 @@ if (cluster.isMaster) {
     console.log(`Server started using ${process.pid} on port 8000`);
   });
 }
+
+// app.listen(8000, () => {
+//   console.log(`Server started using ${process.pid} on port 8000`);
+// });

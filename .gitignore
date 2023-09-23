@@ -4,3 +4,9 @@ dropbox.js
 indexTest.js
 worker.js
 test.js
+test.*
+*.mp4
+test*
+testEncoders
+*.txt
+*.mkv
