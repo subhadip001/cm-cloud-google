@@ -40,6 +40,10 @@ const oauth2Client = new google.auth.OAuth2(
   REDIRECT_URI
 );
 
+app.get("/test", (req, res) => {
+  res.json({ message: "This is a test message" });
+});
+
 app.get("/auth/google", (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
@@ -131,7 +135,7 @@ app.get("/logout", (req, res) => {
       expires: new Date(0),
       path: "/", // Set the path to match the initial authentication request
       domain: "localhost", // Replace with your domain (e.g., localhost)
-      secure: false, // Set to true if using HTTPS
+      secure: true, // Set to true if using HTTPS
     });
     res.json({ message: "Logged out" });
   } catch (err) {
