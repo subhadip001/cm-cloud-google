@@ -135,7 +135,7 @@ app.get("/logout", (req, res) => {
       httpOnly: true,
       expires: new Date(0),
       path: "/", // Set the path to match the initial authentication request
-      domain: "localhost", // Replace with your domain (e.g., localhost)
+      domain: "api.cyphermanager.com", // Replace with your domain (e.g., localhost)
       secure: true, // Set to true if using HTTPS
     });
     res.json({ message: "Logged out" });
@@ -469,7 +469,7 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
         });
         console.log("Status updated to optimising");
       } catch (error) {
-        throw new Error(error.message);
+        console.log(error.message);
       }
 
       try {
