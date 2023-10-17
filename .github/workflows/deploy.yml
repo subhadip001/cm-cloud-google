@@ -41,8 +41,8 @@ jobs:
               cd ~/cm-cloud-google
               git pull origin main
               touch .env
-              echo ${{secrets.PROD_ENV_FILE}} >> .env
+              echo ${{secrets.ENV_FILE}} >> .env
               npm install
-              pm2 start npm --name femto-cloud-api -- run start
+              pm2 restart femto-cloud-api
 
           
