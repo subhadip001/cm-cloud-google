@@ -40,8 +40,6 @@ jobs:
           script: |
               cd ~/cm-cloud-google
               git pull origin main
-              touch .env
-              echo ${{secrets.ENV_FILE}} >> .env
               npm install
               pm2 restart femto-cloud-api
 
