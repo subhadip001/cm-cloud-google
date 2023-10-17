@@ -33,10 +33,13 @@ const ffmpegVideoEncodingHandler = async (
       const bit_rate = codec.bit_rate;
 
       const max_bit_rate = Math.floor(bit_rate / 2);
+      const min_bit_rate = Math.floor(bit_rate / 4);
+      
       outputOptions = [
         `-b:v ${max_bit_rate}`,
         `-maxrate ${max_bit_rate}`,
         `-bufsize ${max_bit_rate}`,
+        `-minrate ${min_bit_rate}`,
         "-threads 4",
         "-crf 28",
         "-preset veryfast",
@@ -59,7 +62,8 @@ const ffmpegVideoEncodingHandler = async (
         .audioCodec(audioCodec)
         .outputOptions(outputOptions)
         .on("start", (commandLine) => {
-          console.log("FFmpeg command:", commandLine);
+          // console.log("FFmpeg command:", commandLine);
+          console.log("Encoding started");
         })
         .on("stderr", (stderrLine) => {
           const progressLine = stderrLine.trim();
@@ -87,10 +91,6 @@ const ffmpegVideoEncodingHandler = async (
             console.log(
               "Output video codec:",
               data.streams.find((stream) => stream.codec_type === "video")
-            );
-            console.log(
-              "Output audio codec:",
-              data.streams.find((stream) => stream.codec_type === "audio")
             );
             resolve();
           });

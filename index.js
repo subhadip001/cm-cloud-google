@@ -55,6 +55,7 @@ app.get("/auth/google", (req, res) => {
       "https://www.googleapis.com/auth/photoslibrary.appendonly",
       "https://www.googleapis.com/auth/photoslibrary.edit.appcreateddata",
     ],
+    prompt: "consent",
   });
   res.redirect(url);
 });
@@ -65,7 +66,6 @@ app.get("/google/redirect", async (req, res) => {
 
   oauth2Client.setCredentials(tokens);
 
-  // Create a JWT token with user information
   const user = {
     googleId: tokens.id_token,
     accessToken: tokens.access_token,
@@ -74,7 +74,11 @@ app.get("/google/redirect", async (req, res) => {
   const token = jwt.sign(user, "my-secret-key");
 
   // Set the JWT token as an HTTP-only cookie
-  res.cookie("access_token", token, { httpOnly: true , sameSite:"none", secure: true});
+  res.cookie("access_token", token, {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+  });
   const closePopupScript = `
     <script>
       window.opener.postMessage('authSuccess', '*');
@@ -87,7 +91,6 @@ app.get("/google/redirect", async (req, res) => {
 
 app.get("/checkAuth", (req, res) => {
   try {
-    // Read the JWT token from the HTTP-only cookie
     const token = req.cookies.access_token;
     //console.log(token);
 
@@ -96,13 +99,10 @@ app.get("/checkAuth", (req, res) => {
       return;
     }
 
-    // Verify the JWT token and extract user information
     jwt.verify(token, "my-secret-key", async (err, decoded) => {
       if (err) {
         res.json({ authenticated: false });
       } else {
-        // Token is valid, user is authenticated
-
         oauth2Client.setCredentials({
           id_token: decoded.googleId,
           access_token: decoded.accessToken,
@@ -145,6 +145,41 @@ app.get("/logout", (req, res) => {
 });
 
 //------------------Computaional Routes------------------//
+
+app.get("/getDriveInfo", async (req, res) => {
+  const token = req.cookies.access_token;
+
+  if (!token) {
+    res.json({ authenticated: false });
+    return;
+  }
+
+  jwt.verify(token, "my-secret-key", async (err, decoded) => {
+    if (err) {
+      res.json({ authenticated: false });
+      return;
+    } else {
+      oauth2Client.setCredentials({
+        id_token: decoded.googleId,
+        access_token: decoded.accessToken,
+        refresh_token: decoded.refreshToken,
+      });
+    }
+  });
+
+  const drive = google.drive({
+    version: "v3",
+    auth: oauth2Client,
+  });
+
+  const driveInfo = await drive.about.get({
+    fields: "user, storageQuota",
+  });
+
+  console.log(driveInfo.data);
+
+  res.json({ success: true, driveInfo: driveInfo.data });
+});
 
 app.get("/readDrive", async (req, res) => {
   const token = req.cookies.access_token;
@@ -649,7 +684,6 @@ app.get("/getMediaItems", async (req, res) => {
   try {
     // Read the JWT token from the HTTP-only cookie
     const token = req.cookies.access_token;
-    
 
     if (!token) {
       res.json({ authenticated: false });
@@ -682,7 +716,7 @@ app.get("/getMediaItems", async (req, res) => {
         );
 
         //console.log(albumResponse.data);
-        const {pageToken} = req.query;
+        const { pageToken } = req.query;
 
         const albums = albumResponse.data.albums;
 
@@ -708,7 +742,12 @@ app.get("/getMediaItems", async (req, res) => {
         //const mediaItems = await photos.albums.listMediaItems('ALBUM_ID');
 
         // Send response to client with listed albums
-        res.json({ success: true, albums: albums, mediaItems: mediaItemsResponse?.data?.mediaItems , nextPageToken: mediaItemsResponse?.data?.nextPageToken });
+        res.json({
+          success: true,
+          albums: albums,
+          mediaItems: mediaItemsResponse?.data?.mediaItems,
+          nextPageToken: mediaItemsResponse?.data?.nextPageToken,
+        });
       }
     });
   } catch (error) {
@@ -997,4 +1036,3 @@ if (cluster.isMaster) {
 // app.listen(8000, () => {
 //   console.log(`Server started using ${process.pid} on port 8000`);
 // });
-  
