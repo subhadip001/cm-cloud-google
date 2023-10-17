@@ -1,0 +1,48 @@
+name: 'CI/CD for Femto Cloud'
+
+on:
+  push:
+    branches:
+      - main
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - name: Install dependencies and build
+        run: |
+          npm install
+
+        env:
+          CI: true
+  
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+              cd ~/cm-cloud-google
+              git pull origin main
+              touch .env
+              echo ${{secrets.PROD_ENV_FILE}} >> .env
+              npm install
+              pm2 start npm --name femto-cloud-api -- run start
+
+          

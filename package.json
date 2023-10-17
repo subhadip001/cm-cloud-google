@@ -6,14 +6,17 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js,",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "ncc build index.js -o dist",
+    "start:prod": "node dist/index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "@ffprobe-installer/ffprobe": "^2.1.1",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
+    "@vercel/ncc": "^0.38.0",
     "axios": "^1.4.0",
     "body-parser": "^1.20.2",
     "compress-pdf": "^0.3.7",

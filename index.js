@@ -33,6 +33,7 @@ app.use(
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
+const PORT = process.env.PORT
 
 const oauth2Client = new google.auth.OAuth2(
   CLIENT_ID,
@@ -1028,8 +1029,8 @@ if (cluster.isMaster) {
     cluster.fork();
   });
 } else {
-  app.listen(8000, () => {
-    console.log(`Server started using ${process.pid} on port 8000`);
+  app.listen(PORT, () => {
+    console.log(`Server started using ${process.pid} on port ${PORT}`);
   });
 }
 
