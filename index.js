@@ -89,7 +89,7 @@ app.get("/auth/google", (req, res) => {
   });
   req.session.phone = phone;
   console.log(req.session)
-  res.redirect(url);
+  res.json({ url });
 });
 
 app.get("/google/redirect", async (req, res) => {
