@@ -32,6 +32,8 @@ app.use(
   })
 );
 
+app.use()
+
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -68,6 +70,17 @@ const getAccessToken = async (phone) => {
   }
 };
 
+const setPhoneMiddleware = async (req, res, next) => {
+  const { phone } = req.body;
+  req.phone = phone;
+  next();
+};
+
+app.post("/" , setPhoneMiddleware , (req,res) => {
+  res.json({ message : "Phone number set to session" });
+})
+
+
 app.get("/test", (req, res) => {
   res.json({ message: "This is a test message" });
 });
@@ -88,27 +101,19 @@ app.get("/auth/google", async (req, res) => {
   });
 
   const response = await axios.post(
-    "https://api.cyphermanager.com/setPhoneToSession",
+    "https://api.cyphermanager.com",
     {
       phone: phone,
     }
   );
 
   console.log(response.data);
-
   res.redirect(url);
 });
 
-app.post("/setPhoneToSession", (req, res) => {
-  const { phone } = req.body;
-  req.session.phone = phone;
-  console.log(req.session);
-  res.json({ message: "Phone number set to session" });
-});
-
 app.get("/google/redirect", async (req, res) => {
-  console.log(req.session);
-  if (!req.session.phone) {
+  console.log(req.phone);
+  if (!req.phone) {
     return res.status(400).json({ message: "Phone number not found" });
   }
   const { code } = req.query;
@@ -124,7 +129,7 @@ app.get("/google/redirect", async (req, res) => {
   const token = jwt.sign(user, "my-secret-key");
 
   const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
-    phone: req.session.phone,
+    phone: req.phone,
     cloudName: "google",
     accessToken: token,
   });
