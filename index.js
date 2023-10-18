@@ -88,7 +88,7 @@ app.get("/auth/google", (req, res) => {
     prompt: "consent",
   });
   req.session.phone = phone;
-
+  console.log(req.session)
   res.redirect(url);
 });
 
