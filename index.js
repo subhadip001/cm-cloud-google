@@ -42,7 +42,6 @@ app.use(
   })
 );
 
-
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
@@ -73,7 +72,7 @@ app.get("/test", (req, res) => {
   res.json({ message: "This is a test message" });
 });
 
-app.get("/auth/google", (req, res) => {
+app.get("/auth/google", async (req, res) => {
   const { phone } = req.query;
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
@@ -87,14 +86,29 @@ app.get("/auth/google", (req, res) => {
     ],
     prompt: "consent",
   });
+
+  const response = await axios.post(
+    "https://api.cyphermanager.com/setPhoneToSession",
+    {
+      phone: phone,
+    }
+  );
+
+  console.log(response.data);
+
+  res.redirect(url);
+});
+
+app.post("/setPhoneToSession", (req, res) => {
+  const { phone } = req.body;
   req.session.phone = phone;
-  console.log(req.session)
-  res.json({ url });
+  console.log(req.session);
+  res.json({ message: "Phone number set to session" });
 });
 
 app.get("/google/redirect", async (req, res) => {
   console.log(req.session);
-  if(!req.session.phone) {
+  if (!req.session.phone) {
     return res.status(400).json({ message: "Phone number not found" });
   }
   const { code } = req.query;
@@ -1062,7 +1076,6 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
     }
   });
 });
-
 
 if (cluster.isMaster) {
   console.log(`Master ${process.pid} is running`);
