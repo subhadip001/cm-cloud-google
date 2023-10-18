@@ -100,7 +100,7 @@ app.get("/google/redirect", async (req, res) => {
   };
   const token = jwt.sign(user, "my-secret-key");
 
-  console.log(req.session.phone);
+  console.log(req.session);
 
   const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
     phone : req.session.phone,
