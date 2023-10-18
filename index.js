@@ -7,6 +7,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const session = require("express-session")
+require("dotenv").config();
 
 const cluster = require("cluster");
 const os = require("os");
@@ -16,7 +17,7 @@ const { ffmpegVideoEncodingHandler } = require("./encoders/videoEncoder");
 const { sharpEncodingHandler } = require("./encoders/sharp");
 const { pdfEncodingHandler } = require("./encoders/pdfEncoder");
 const axiosClient = require("./axiosClient");
-require("dotenv").config();
+
 
 const app = express();
 
