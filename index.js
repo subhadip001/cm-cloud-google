@@ -7,7 +7,6 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const session = require("express-session");
-const proxy = require("express-http-proxy");
 require("dotenv").config();
 
 const cluster = require("cluster");
@@ -21,6 +20,18 @@ const axiosClient = require("./axiosClient");
 
 const app = express();
 
+app.use(
+  session({
+    secret: "abafemto-express-session-secretzyz",
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      secure: true,
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    },
+  })
+);
+
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -31,13 +42,6 @@ app.use(
   })
 );
 
-app.use(
-  session({
-    secret: "abafemto-express-session-secretzyz",
-    resave: false,
-    saveUninitialized: true,
-  })
-);
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -1057,7 +1061,6 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
   });
 });
 
-app.use(proxy("https://cloud.cyphermanager.com"));
 
 if (cluster.isMaster) {
   console.log(`Master ${process.pid} is running`);
