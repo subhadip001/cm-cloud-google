@@ -4,9 +4,9 @@ const fs = require("fs");
 const bodyParser = require("body-parser");
 const path = require("path");
 const cors = require("cors");
-const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
+const session = require("express-session")
 
 const cluster = require("cluster");
 const os = require("os");
@@ -22,7 +22,7 @@ const app = express();
 
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cookieParser());
+
 app.use(
   cors({
     origin: ["http://localhost:5000", "https://cloud.cyphermanager.com"],
@@ -30,10 +30,18 @@ app.use(
   })
 );
 
+app.use(
+  session({
+    secret:"abafemto-express-session-secretzyz",
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
-const PORT = process.env.PORT
+const PORT = process.env.PORT;
 
 const oauth2Client = new google.auth.OAuth2(
   CLIENT_ID,
@@ -41,11 +49,27 @@ const oauth2Client = new google.auth.OAuth2(
   REDIRECT_URI
 );
 
+const getAccessToken = async (phone) => {
+  try {
+    const response = await axiosClient.post("/getAccessTokenForCloudProvider", {
+      phone,
+      cloudName : "google",
+    });
+
+    console.log(response.data)
+
+    return response.data.accessToken;
+  } catch (error) {
+    console.log(error.message);
+  }
+};
+
 app.get("/test", (req, res) => {
   res.json({ message: "This is a test message" });
 });
 
 app.get("/auth/google", (req, res) => {
+  const {phone} = req.query;
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: [
@@ -58,6 +82,7 @@ app.get("/auth/google", (req, res) => {
     ],
     prompt: "consent",
   });
+  req.session.phone = phone;
   res.redirect(url);
 });
 
@@ -67,6 +92,7 @@ app.get("/google/redirect", async (req, res) => {
 
   oauth2Client.setCredentials(tokens);
 
+  const phone = req.session.phone;
   const user = {
     googleId: tokens.id_token,
     accessToken: tokens.access_token,
@@ -74,12 +100,16 @@ app.get("/google/redirect", async (req, res) => {
   };
   const token = jwt.sign(user, "my-secret-key");
 
-  // Set the JWT token as an HTTP-only cookie
-  res.cookie("access_token", token, {
-    httpOnly: true,
-    sameSite: "none",
-    secure: true,
+  const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
+    phone,
+    cloudName : "google",
+    accessToken: token,
   });
+
+  delete req.session.phone;
+
+  console.log(response.data);
+
   const closePopupScript = `
     <script>
       window.opener.postMessage('authSuccess', '*');
@@ -90,10 +120,13 @@ app.get("/google/redirect", async (req, res) => {
   res.send(closePopupScript);
 });
 
-app.get("/checkAuth", (req, res) => {
+app.post("/checkAuth", async (req, res) => {
   try {
-    const token = req.cookies.access_token;
-    //console.log(token);
+    
+    const { phone } = req.body;
+
+    const token = await getAccessToken(phone);
+    console.log(token);
 
     if (!token) {
       res.json({ authenticated: false });
@@ -128,16 +161,23 @@ app.get("/checkAuth", (req, res) => {
   }
 });
 
-app.get("/logout", (req, res) => {
+app.post("/logout", async (req, res) => {
+
+  const { phone } = req.body;
   try {
-    // Clear the JWT token by setting an expired cookie
-    res.cookie("access_token", "", {
-      httpOnly: true,
-      expires: new Date(0),
-      path: "/", // Set the path to match the initial authentication request
-      domain: "api.cyphermanager.com", // Replace with your domain (e.g., localhost)
-      secure: true, // Set to true if using HTTPS
+
+    const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
+      phone,
+      cloudName : "google",
+      accessToken: "",
     });
+
+    console.log(response.data);
+
+    if (response.status !== 200) {
+      return res.status(500).json({ message: "Server Error" });
+    }
+
     res.json({ message: "Logged out" });
   } catch (err) {
     console.log(err.message);
@@ -147,8 +187,9 @@ app.get("/logout", (req, res) => {
 
 //------------------Computaional Routes------------------//
 
-app.get("/getDriveInfo", async (req, res) => {
-  const token = req.cookies.access_token;
+app.post("/getDriveInfo", async (req, res) => {
+  const { phone } = req.body;
+  const token = await getAccessToken(phone);
 
   if (!token) {
     res.json({ authenticated: false });
@@ -182,8 +223,9 @@ app.get("/getDriveInfo", async (req, res) => {
   res.json({ success: true, driveInfo: driveInfo.data });
 });
 
-app.get("/readDrive", async (req, res) => {
-  const token = req.cookies.access_token;
+app.post("/readDrive", async (req, res) => {
+  const { phone } = req.body;
+  const token = await getAccessToken(phone);
 
   if (!token) {
     res.json({ authenticated: false });
@@ -332,7 +374,7 @@ const uploadFileHandler = async (filePath, fileName, mimeType, token) => {
           console.log("New File uploaded successfully");
           resolve();
         } catch (error) {
-          throw new Error(error.message);
+          console.log(error.message);
           reject(error);
         }
       }
@@ -428,7 +470,7 @@ const uploadPhotosLibraryHandler = async (
 
 app.post("/optimiseSelectedDriveFiles", async (req, res) => {
   const { fileIds, phone, cloudName, autoDelete } = req.body;
-  const token = req.cookies.access_token;
+  const token = await getAccessToken(phone);
 
   if (!token) {
     res.json({ authenticated: false });
@@ -551,7 +593,7 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                         outputPath,
                         `opt-${fileName}`,
                         "video/mp4",
-                        req.cookies.access_token
+                        token
                       );
 
                       if (autoDelete) {
@@ -591,7 +633,7 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                       outputPath,
                       `opt-${fileName}`,
                       "image/webp",
-                      req.cookies.access_token
+                      token
                     );
 
                     if (autoDelete) {
@@ -622,7 +664,7 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                       outputPath,
                       `opt-${fileName}`,
                       "application/pdf",
-                      req.cookies.access_token
+                      token
                     );
 
                     if (autoDelete) {
@@ -670,7 +712,7 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
                 message: "Optimisation complete",
               });
             } catch (error) {
-              throw new Error(error.message);
+              console.log(error.message);
             }
           }
         }, 1000);
@@ -681,10 +723,10 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
   });
 });
 
-app.get("/getMediaItems", async (req, res) => {
+app.post("/getMediaItems", async (req, res) => {
+  const { phone } = req.body;
   try {
-    // Read the JWT token from the HTTP-only cookie
-    const token = req.cookies.access_token;
+    const token = await getAccessToken(phone);
 
     if (!token) {
       res.json({ authenticated: false });
@@ -776,7 +818,7 @@ app.post("/downloadPhotos", async (req, res) => {
 
 app.post("/optimiseSelectedMediaItems", async (req, res) => {
   const { phone, cloudName, mediaItemIds } = req.body;
-  const token = req.cookies.access_token;
+  const token = await getAccessToken(phone);
 
   if (!token) {
     res.json({ authenticated: false });
@@ -816,7 +858,7 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
 
         console.log("Status updated to optimising");
       } catch (error) {
-        throw new Error(error.message);
+        console.log(error.message);
       }
 
       try {
@@ -881,7 +923,7 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
                   outputPath,
                   `opt-${filename}`,
                   "image/webp",
-                  req.cookies.access_token
+                  token
                 );
                 fs.unlinkSync(filePath);
                 fs.unlinkSync(outputPath);
@@ -942,7 +984,7 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
                   outputPath,
                   `opt-${filename}`,
                   "video/mp4",
-                  req.cookies.access_token
+                  token
                 );
                 // fs.unlinkSync(filePath);
                 // fs.unlinkSync(outputPath);
@@ -970,7 +1012,7 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
                 completedMediaItems++;
               } catch (error) {
                 completedMediaItems++;
-                throw new Error(error.message);
+                console.log(error.message);
               }
             });
           } else {
