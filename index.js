@@ -1057,7 +1057,7 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
   });
 });
 
-app.use(proxy("http://cloud.cyphermanager.com"));
+app.use(proxy("https://cloud.cyphermanager.com"));
 
 if (cluster.isMaster) {
   console.log(`Master ${process.pid} is running`);
