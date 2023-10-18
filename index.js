@@ -93,7 +93,6 @@ app.get("/google/redirect", async (req, res) => {
 
   oauth2Client.setCredentials(tokens);
 
-  const phone = req.session.phone;
   const user = {
     googleId: tokens.id_token,
     accessToken: tokens.access_token,
@@ -101,13 +100,13 @@ app.get("/google/redirect", async (req, res) => {
   };
   const token = jwt.sign(user, "my-secret-key");
 
+  console.log(req.session.phone);
+
   const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
-    phone,
+    phone : req.session.phone,
     cloudName : "google",
     accessToken: token,
   });
-
-  delete req.session.phone;
 
   console.log(response.data);
 
