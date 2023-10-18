@@ -6,7 +6,8 @@ const path = require("path");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
-const session = require("express-session")
+const session = require("express-session");
+const proxy = require("express-http-proxy");
 require("dotenv").config();
 
 const cluster = require("cluster");
@@ -17,7 +18,6 @@ const { ffmpegVideoEncodingHandler } = require("./encoders/videoEncoder");
 const { sharpEncodingHandler } = require("./encoders/sharp");
 const { pdfEncodingHandler } = require("./encoders/pdfEncoder");
 const axiosClient = require("./axiosClient");
-
 
 const app = express();
 
@@ -33,7 +33,7 @@ app.use(
 
 app.use(
   session({
-    secret:"abafemto-express-session-secretzyz",
+    secret: "abafemto-express-session-secretzyz",
     resave: false,
     saveUninitialized: true,
   })
@@ -54,10 +54,10 @@ const getAccessToken = async (phone) => {
   try {
     const response = await axiosClient.post("/getAccessTokenForCloudProvider", {
       phone,
-      cloudName : "google",
+      cloudName: "google",
     });
 
-    console.log(response.data)
+    console.log(response.data);
 
     return response.data.accessToken;
   } catch (error) {
@@ -70,7 +70,7 @@ app.get("/test", (req, res) => {
 });
 
 app.get("/auth/google", (req, res) => {
-  const {phone} = req.query;
+  const { phone } = req.query;
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: [
@@ -84,7 +84,7 @@ app.get("/auth/google", (req, res) => {
     prompt: "consent",
   });
   req.session.phone = phone;
-  console.log(req.session);
+
   res.redirect(url);
 });
 
@@ -104,8 +104,8 @@ app.get("/google/redirect", async (req, res) => {
   console.log(req.session);
 
   const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
-    phone : req.session.phone,
-    cloudName : "google",
+    phone: req.session.phone,
+    cloudName: "google",
     accessToken: token,
   });
 
@@ -123,7 +123,6 @@ app.get("/google/redirect", async (req, res) => {
 
 app.post("/checkAuth", async (req, res) => {
   try {
-    
     const { phone } = req.body;
 
     const token = await getAccessToken(phone);
@@ -163,13 +162,11 @@ app.post("/checkAuth", async (req, res) => {
 });
 
 app.post("/logout", async (req, res) => {
-
   const { phone } = req.body;
   try {
-
     const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
       phone,
-      cloudName : "google",
+      cloudName: "google",
       accessToken: "",
     });
 
@@ -1059,6 +1056,8 @@ app.post("/optimiseSelectedMediaItems", async (req, res) => {
     }
   });
 });
+
+app.use(proxy("http://cloud.cyphermanager.com"));
 
 if (cluster.isMaster) {
   console.log(`Master ${process.pid} is running`);
