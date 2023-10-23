@@ -96,7 +96,6 @@ app.get("/auth/google", async (req, res) => {
   req.session.phone = phone;
   req.session.save();
   log(req.session);
-  console.log(response.data);
   res.redirect(url);
 });
 
