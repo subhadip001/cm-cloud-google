@@ -100,7 +100,7 @@ app.get("/auth/google", async (req, res) => {
 });
 
 app.get("/google/redirect", async (req, res) => {
-  console.log(req.session);
+  
   if (!req.session.phone) {
     return res.status(400).json({ message: "Phone number not found" });
   }
@@ -117,7 +117,7 @@ app.get("/google/redirect", async (req, res) => {
   const token = jwt.sign(user, "my-secret-key");
 
   const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
-    phone: req.phone,
+    phone: req.session.phone,
     cloudName: "google",
     accessToken: token,
   });
