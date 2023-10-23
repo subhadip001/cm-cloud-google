@@ -8,6 +8,7 @@ const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const session = require("express-session");
 require("dotenv").config();
+const MongoStore = require("connect-mongo");
 
 const cluster = require("cluster");
 const os = require("os");
@@ -25,10 +26,12 @@ app.use(
     secret: "abafemto-express-session-secretzyz",
     resave: false,
     saveUninitialized: true,
-    cookie: {
-      secure: true,
-      maxAge: 1000 * 60 * 60 * 24 * 7,
-    },
+    store: MongoStore.create({
+      mongoUrl:
+        "mongodb+srv://cm-db:thJxciKkvKKLr6sH@cm-db.xpeoxvz.mongodb.net/sessions",
+      autoRemove: "disabled",
+      ttl: 14 * 24 * 60 * 60,
+    }),
   })
 );
 
@@ -46,6 +49,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
 const PORT = process.env.PORT;
+let log = console.log;
 
 const oauth2Client = new google.auth.OAuth2(
   CLIENT_ID,
@@ -68,15 +72,6 @@ const getAccessToken = async (phone) => {
   }
 };
 
-const setPhoneMiddleware = async (req, res, next) => {
-  const { phone } = req.body;
-  req.phone = phone;
-  next();
-};
-
-app.post("/" , setPhoneMiddleware , (req,res) => {
-  res.json({ message : "Phone number set to session" });
-})
 
 
 app.get("/test", (req, res) => {
@@ -98,20 +93,16 @@ app.get("/auth/google", async (req, res) => {
     prompt: "consent",
   });
 
-  const response = await axios.post(
-    "https://api.cyphermanager.com",
-    {
-      phone: phone,
-    }
-  );
-
+  req.session.phone = phone;
+  req.session.save();
+  log(req.session);
   console.log(response.data);
   res.redirect(url);
 });
 
 app.get("/google/redirect", async (req, res) => {
-  console.log(req.phone);
-  if (!req.phone) {
+  console.log(req.session);
+  if (!req.session.phone) {
     return res.status(400).json({ message: "Phone number not found" });
   }
   const { code } = req.query;
