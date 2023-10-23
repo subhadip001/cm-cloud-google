@@ -72,8 +72,6 @@ const getAccessToken = async (phone) => {
   }
 };
 
-
-
 app.get("/test", (req, res) => {
   res.json({ message: "This is a test message" });
 });
@@ -100,7 +98,6 @@ app.get("/auth/google", async (req, res) => {
 });
 
 app.get("/google/redirect", async (req, res) => {
-  
   if (!req.session.phone) {
     return res.status(400).json({ message: "Phone number not found" });
   }
@@ -116,13 +113,18 @@ app.get("/google/redirect", async (req, res) => {
   };
   const token = jwt.sign(user, "my-secret-key");
 
-  const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
-    phone: req.session.phone,
-    cloudName: "google",
-    accessToken: token,
-  });
+  try {
+    const response = await axiosClient.post("/setAccessTokenForCloudProvider", {
+      phone: req.session.phone,
+      cloudName: "google",
+      accessToken: token,
+    });
 
-  console.log(response.data);
+    console.log(response.data);
+  } catch (error) {
+    console.log(error.message);
+    return res.status(500).json({ message: "Error while setting access token" });
+  }
 
   const closePopupScript = `
     <script>
