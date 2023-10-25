@@ -36,24 +36,6 @@ const ffmpegVideoEncodingHandler = async (
       let max_bit_rate = Math.floor(bit_rate / 2);
       let min_bit_rate = Math.floor(bit_rate / 4);
 
-      if (codec.tags.BPS) {
-        max_bit_rate = Math.floor(codec.tags.BPS / 2);
-        min_bit_rate = Math.floor(codec.tags.BPS / 4);
-      } else {
-        max_bit_rate = Math.floor(bit_rate / 2);
-        min_bit_rate = Math.floor(bit_rate / 4);
-      }
-
-      outputOptions = [
-        `-b:v ${max_bit_rate}`,
-        `-maxrate ${max_bit_rate}`,
-        `-bufsize ${max_bit_rate}`,
-        `-minrate ${min_bit_rate}`,
-        "-threads 4",
-        "-crf 26",
-        "-preset veryfast",
-      ];
-
       if (inputVideoCodec === "h264" || inputVideoCodec === "h265") {
         outputVideoCodec = "libx264";
         console.log(inputVideoCodec);
@@ -64,6 +46,35 @@ const ffmpegVideoEncodingHandler = async (
         outputVideoCodec = "libvpx-vp9";
         console.log(inputVideoCodec);
       }
+
+      if (codec.tags.BPS) {
+        max_bit_rate = Math.floor(codec.tags.BPS / 2);
+        min_bit_rate = Math.floor(codec.tags.BPS / 4);
+        outputVideoCodec = "libx265";
+        outputOptions = [
+          `-b:v ${max_bit_rate}`,
+          `-maxrate ${max_bit_rate}`,
+          `-bufsize ${max_bit_rate}`,
+          "-threads 4",
+          "-preset veryfast",
+        ];
+      } else {
+        max_bit_rate = Math.floor(bit_rate / 2);
+        min_bit_rate = Math.floor(bit_rate / 4);
+        outputOptions = [
+          `-b:v ${max_bit_rate}`,
+          `-maxrate ${max_bit_rate}`,
+          `-bufsize ${max_bit_rate}`,
+          `-minrate ${min_bit_rate}`,
+          "-threads 4",
+          "-crf 26",
+          "-preset veryfast",
+        ];
+      }
+
+      
+
+      
 
       let audioCodec = "aac";
       ffmpeg(inputPath)
