@@ -11,3 +11,4 @@ test*
 testEncoders
 *.txt
 *.mkv
+*_test
