@@ -38,12 +38,16 @@ app.use(
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.use(
-  cors({
-    origin: ["*"],
-    credentials: false,
-  })
-);
+app.use(cors());
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept"
+  );
+  next();
+});
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -123,7 +127,9 @@ app.get("/google/redirect", async (req, res) => {
     console.log(response.data);
   } catch (error) {
     console.log(error.message);
-    return res.status(500).json({ message: "Error while setting access token" });
+    return res
+      .status(500)
+      .json({ message: "Error while setting access token" });
   }
 
   const closePopupScript = `
