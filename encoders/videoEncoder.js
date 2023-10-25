@@ -1,5 +1,6 @@
 const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
 const path = require("path");
+const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -105,6 +106,7 @@ const ffmpegVideoEncodingHandler = async (
         })
         .on("error", (err) => {
           console.error("Error during encoding:", err.message);
+          fs.unlinkSync(inputPath);
           reject(err);
         })
         .output(outputPath)
