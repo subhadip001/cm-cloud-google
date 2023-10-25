@@ -41,7 +41,7 @@ const ffmpegVideoEncodingHandler = async (
         `-bufsize ${max_bit_rate}`,
         `-minrate ${min_bit_rate}`,
         "-threads 4",
-        "-crf 28",
+        "-crf 26",
         "-preset veryfast",
       ];
 
