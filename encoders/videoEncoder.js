@@ -32,13 +32,22 @@ const ffmpegVideoEncodingHandler = async (
 
       const bit_rate = codec.bit_rate;
 
-      const max_bit_rate = Math.floor(bit_rate / 2);
-      const min_bit_rate = Math.floor(bit_rate / 4);
-      
+      let max_bit_rate = Math.floor(bit_rate / 2);
+      let min_bit_rate = Math.floor(bit_rate / 4);
+
+      if (codec.tags.BPS) {
+        max_bit_rate = Math.floor(codec.tags.BPS / 2);
+        min_bit_rate = Math.floor(codec.tags.BPS / 4);
+      } else {
+        max_bit_rate = Math.floor(bit_rate / 2);
+        min_bit_rate = Math.floor(bit_rate / 4);
+      }
+
       outputOptions = [
         `-b:v ${max_bit_rate}`,
         `-maxrate ${max_bit_rate}`,
         `-bufsize ${max_bit_rate}`,
+        `-minrate ${min_bit_rate}`,
         "-threads 4",
         "-crf 26",
         "-preset veryfast",
