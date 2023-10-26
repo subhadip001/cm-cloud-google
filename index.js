@@ -571,7 +571,10 @@ app.post("/optimiseSelectedDriveFiles", async (req, res) => {
             ) {
               dest = fs.createWriteStream(imageFilePath);
             } else if (fileExtension === "pdf") {
-              dest = fs.createWriteStream(pdfFilePath);
+              // dest = fs.createWriteStream(pdfFilePath);
+              console.log("Pdf Compression coming soon...");
+              completedFiles++;
+              continue;
             } else {
               console.log("File type not supported, Skipping...");
               completedFiles++;
