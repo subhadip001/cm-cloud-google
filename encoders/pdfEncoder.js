@@ -18,6 +18,7 @@ const pdfEncodingHandler = async (inputPath, outputPath) => {
       quality: "80", // output quality
       compressMethod: "Flate", // compression method
       compressLevel: 9, // compression level
+      binPath: "/usr/bin", // gs path
     });
 
     await fs.promises.writeFile(outputPath, buffer);
