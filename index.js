@@ -29,7 +29,8 @@ app.use(
     store: MongoStore.create({
       mongoUrl:
         "mongodb+srv://cm-db:thJxciKkvKKLr6sH@cm-db.xpeoxvz.mongodb.net/sessions",
-      autoRemove: "disabled",
+      autoRemove: "interval",
+      autoRemoveInterval: 10,
       ttl: 14 * 24 * 60 * 60,
     }),
   })
