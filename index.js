@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const session = require("express-session");
 require("dotenv").config();
+const MongoStore = require("connect-mongo");
 
 const fs = require("fs");
 const path = require("path");
@@ -19,6 +20,7 @@ const { sharpEncodingHandler } = require("./encoders/sharp");
 const { pdfEncodingHandler } = require("./encoders/pdfEncoder");
 const axiosClient = require("./axiosClient");
 
+
 const app = express();
 
 app.use(
@@ -26,13 +28,13 @@ app.use(
     secret: "abafemto-express-session-secretzyz",
     resave: false,
     saveUninitialized: true,
-    // store: MongoStore.create({
-    //   mongoUrl:
-    //     "mongodb+srv://cm-db:thJxciKkvKKLr6sH@cm-db.xpeoxvz.mongodb.net/sessions",
-    //   autoRemove: "interval",
-    //   autoRemoveInterval: 10,
-    //   ttl: 14 * 24 * 60 * 60,
-    // }),
+    store: MongoStore.create({
+      mongoUrl:
+        "mongodb+srv://cm-db:thJxciKkvKKLr6sH@cm-db.xpeoxvz.mongodb.net/sessions",
+      autoRemove: "interval",
+      autoRemoveInterval: 10,
+      ttl: 14 * 24 * 60 * 60,
+    }),
   })
 );
 
