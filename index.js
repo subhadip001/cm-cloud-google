@@ -1,18 +1,18 @@
 const { google } = require("googleapis");
 const express = require("express");
-const fs = require("fs");
 const bodyParser = require("body-parser");
-const path = require("path");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const session = require("express-session");
 require("dotenv").config();
-const MongoStore = require("connect-mongo");
 
+const fs = require("fs");
+const path = require("path");
 const cluster = require("cluster");
 const os = require("os");
 const numCPUs = os.cpus().length;
+
 
 const { ffmpegVideoEncodingHandler } = require("./encoders/videoEncoder");
 const { sharpEncodingHandler } = require("./encoders/sharp");
@@ -26,13 +26,13 @@ app.use(
     secret: "abafemto-express-session-secretzyz",
     resave: false,
     saveUninitialized: true,
-    store: MongoStore.create({
-      mongoUrl:
-        "mongodb+srv://cm-db:thJxciKkvKKLr6sH@cm-db.xpeoxvz.mongodb.net/sessions",
-      autoRemove: "interval",
-      autoRemoveInterval: 10,
-      ttl: 14 * 24 * 60 * 60,
-    }),
+    // store: MongoStore.create({
+    //   mongoUrl:
+    //     "mongodb+srv://cm-db:thJxciKkvKKLr6sH@cm-db.xpeoxvz.mongodb.net/sessions",
+    //   autoRemove: "interval",
+    //   autoRemoveInterval: 10,
+    //   ttl: 14 * 24 * 60 * 60,
+    // }),
   })
 );
 
