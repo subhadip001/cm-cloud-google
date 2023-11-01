@@ -36,7 +36,7 @@ const ffmpegVideoEncodingHandler = async (
       let max_bit_rate = Math.floor(bit_rate / 2);
       let min_bit_rate = Math.floor(bit_rate / 4);
 
-      if (inputVideoCodec === "h264" || inputVideoCodec === "h265") {
+      if (inputVideoCodec === "h264" || inputVideoCodec === "hevc") {
         outputVideoCodec = "libx264";
         console.log(inputVideoCodec);
       } else if (inputVideoCodec === "vp9") {
