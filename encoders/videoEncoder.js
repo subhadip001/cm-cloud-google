@@ -7,6 +7,14 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const ffprobePath = require("@ffprobe-installer/ffprobe").path;
 ffmpeg.setFfprobePath(ffprobePath);
 
+/**
+ * @param {string} inputPath
+ * @param {string} outputPath
+ * @param {string} fileExtension
+ * @returns {Promise<void>}
+ * @throws {Error}
+ */
+
 const ffmpegVideoEncodingHandler = async (
   inputPath,
   outputPath,
@@ -71,10 +79,6 @@ const ffmpegVideoEncodingHandler = async (
           "-preset veryfast",
         ];
       }
-
-      
-
-      
 
       let audioCodec = "aac";
       ffmpeg(inputPath)

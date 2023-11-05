@@ -2,6 +2,19 @@ const path = require("path");
 const fs = require("fs");
 const { compress } = require("compress-pdf");
 
+/**
+ * @param {string} inputPath
+ * @param {string} outputPath
+ * @returns {Promise<void>}
+ * @throws {Error}
+ * @description
+ * This function compresses a PDF file using the compress-pdf library.
+ * It rejects if the input file is less than 2MB.
+ * It rejects if the output file is larger than the input file.
+ * It resolves if the output file is smaller than the input file.
+ * It rejects if the output file is not created.
+ */
+
 const pdfEncodingHandler = async (inputPath, outputPath) => {
   return new Promise(async (resolve, reject) => {
     const stats = await fs.promises.stat(inputPath);

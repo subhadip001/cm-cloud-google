@@ -1,8 +1,11 @@
 const sharp = require("sharp");
 
-const inputPath = "./test.png";
-
-const outputPath = "./test_out_put.webp";
+/**
+ * @param {string} inputPath
+ * @param {string} outputPath
+ * @returns {Promise<void>}
+ * @throws {Error}
+ */
 
 const sharpEncodingHandler = async (inputPath, outputPath) => {
   return new Promise((resolve, reject) => {
