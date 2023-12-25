@@ -18,7 +18,7 @@ ffmpeg.setFfprobePath(ffprobePath);
 
 const ffmpegVideoEncodingHandler = async (
   inputPath,
-  outputPath,
+  outputPath
   // onProgress
 ) => {
   return new Promise((resolve, reject) => {
@@ -43,8 +43,9 @@ const ffmpegVideoEncodingHandler = async (
       const bit_rate = codec.bit_rate;
       const totalDuration = codec?.duration;
 
-      let max_bit_rate = Math.floor(bit_rate / 2);
-      let min_bit_rate = Math.floor(bit_rate / 4);
+      let out_bit_rate = Math.floor(bit_rate / 2);
+      let max_bit_rate = Math.floor(out_bit_rate + out_bit_rate * 0.1);
+      let buf_size = Math.floor(max_bit_rate - max_bit_rate * 0.1);
 
       if (inputVideoCodec === "h264") {
         outputVideoCodec = "libx264";
@@ -61,26 +62,24 @@ const ffmpegVideoEncodingHandler = async (
       }
 
       if (codec.tags.BPS) {
-        max_bit_rate = Math.floor(codec.tags.BPS / 2);
-        min_bit_rate = Math.floor(codec.tags.BPS / 4);
+        out_bit_rate = Math.floor(codec.tags.BPS / 2);
+        max_bit_rate = Math.floor(out_bit_rate + out_bit_rate * 0.1);
+        buf_size = Math.floor(max_bit_rate - max_bit_rate * 0.1);
         outputVideoCodec = "libx265";
         outputOptions = [
           `-map 0`,
-          `-b:v ${max_bit_rate}`,
-          `-maxrate ${max_bit_rate}`,
-          `-bufsize ${max_bit_rate}`,
+          `-b:v ${out_bit_rate}`,
+          `-maxrate ${out_bit_rate}`,
+          `-bufsize ${out_bit_rate}`,
           "-threads 4",
           "-preset veryfast",
         ];
       } else {
-        max_bit_rate = Math.floor(bit_rate / 2);
-        min_bit_rate = Math.floor(bit_rate / 4);
         outputOptions = [
           `-map 0`,
-          `-b:v ${max_bit_rate}`,
+          `-b:v ${out_bit_rate}`,
           `-maxrate ${max_bit_rate}`,
-          `-bufsize ${max_bit_rate}`,
-          `-crf 28`,
+          `-bufsize ${buf_size}`,
           "-threads 4",
           "-preset veryfast",
         ];
@@ -105,7 +104,7 @@ const ffmpegVideoEncodingHandler = async (
               .map(parseFloat);
             const totalSeconds = hours * 3600 + minutes * 60 + seconds;
             const percent = (totalSeconds / totalDuration) * 100;
-           // console.log("Encoding progress:", percent.toFixed(2) + "%");
+            // console.log("Encoding progress:", percent.toFixed(2) + "%");
             // onProgress(percent.toFixed(2));
           }
         })
