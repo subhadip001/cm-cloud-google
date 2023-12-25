@@ -1,6 +1,7 @@
 const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
 const path = require("path");
 const fs = require("fs");
+const fsPromises = fs.promises;
 const ffmpeg = require("fluent-ffmpeg");
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -10,7 +11,7 @@ ffmpeg.setFfprobePath(ffprobePath);
 /**
  * @param {string} inputPath
  * @param {string} outputPath
- * @param {string} fileExtension
+ * @param {(progress: number) => void} onProgress
  * @returns {Promise<void>}
  * @throws {Error}
  */
@@ -18,7 +19,7 @@ ffmpeg.setFfprobePath(ffprobePath);
 const ffmpegVideoEncodingHandler = async (
   inputPath,
   outputPath,
-  fileExtension
+  // onProgress
 ) => {
   return new Promise((resolve, reject) => {
     let outputVideoCodec;
@@ -37,15 +38,19 @@ const ffmpegVideoEncodingHandler = async (
         (stream) => stream.codec_type === "video"
       );
 
-      console.log("codecName: ", codec);
+      // console.log("codecName: ", codec);
 
       const bit_rate = codec.bit_rate;
+      const totalDuration = codec?.duration;
 
       let max_bit_rate = Math.floor(bit_rate / 2);
       let min_bit_rate = Math.floor(bit_rate / 4);
 
-      if (inputVideoCodec === "h264" || inputVideoCodec === "hevc") {
+      if (inputVideoCodec === "h264") {
         outputVideoCodec = "libx264";
+        console.log(inputVideoCodec);
+      } else if (inputVideoCodec === "hevc") {
+        outputVideoCodec = "libx265";
         console.log(inputVideoCodec);
       } else if (inputVideoCodec === "vp9") {
         outputVideoCodec = "libx265";
@@ -60,6 +65,7 @@ const ffmpegVideoEncodingHandler = async (
         min_bit_rate = Math.floor(codec.tags.BPS / 4);
         outputVideoCodec = "libx265";
         outputOptions = [
+          `-map 0`,
           `-b:v ${max_bit_rate}`,
           `-maxrate ${max_bit_rate}`,
           `-bufsize ${max_bit_rate}`,
@@ -70,12 +76,12 @@ const ffmpegVideoEncodingHandler = async (
         max_bit_rate = Math.floor(bit_rate / 2);
         min_bit_rate = Math.floor(bit_rate / 4);
         outputOptions = [
+          `-map 0`,
           `-b:v ${max_bit_rate}`,
           `-maxrate ${max_bit_rate}`,
           `-bufsize ${max_bit_rate}`,
           `-minrate ${min_bit_rate}`,
           "-threads 4",
-          "-crf 26",
           "-preset veryfast",
         ];
       }
@@ -98,9 +104,9 @@ const ffmpegVideoEncodingHandler = async (
               .split(":")
               .map(parseFloat);
             const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-            const totalDuration = 100;
             const percent = (totalSeconds / totalDuration) * 100;
-            console.log("Encoding progress:", percent.toFixed(2) + "s");
+            console.log("Encoding progress:", percent.toFixed(2) + "%");
+            // onProgress(percent.toFixed(2));
           }
         })
         .on("end", () => {
@@ -112,16 +118,16 @@ const ffmpegVideoEncodingHandler = async (
               reject(err);
               return;
             }
-            console.log(
-              "Output video codec:",
-              data.streams.find((stream) => stream.codec_type === "video")
-            );
+            // console.log(
+            //   "Output video codec:",
+            //   data.streams.find((stream) => stream.codec_type === "video")
+            // );
             resolve();
           });
         })
-        .on("error", (err) => {
+        .on("error", async (err) => {
           console.error("Error during encoding:", err.message);
-          fs.unlinkSync(inputPath);
+          await fsPromises.unlink(inputPath);
           reject(err);
         })
         .output(outputPath)
