@@ -38,7 +38,7 @@ const ffmpegVideoEncodingHandler = async (
         (stream) => stream.codec_type === "video"
       );
 
-      // console.log("codecName: ", codec);
+      console.log("codecName: ", codec);
 
       const bit_rate = codec.bit_rate;
       const totalDuration = codec?.duration;
@@ -80,7 +80,7 @@ const ffmpegVideoEncodingHandler = async (
           `-b:v ${max_bit_rate}`,
           `-maxrate ${max_bit_rate}`,
           `-bufsize ${max_bit_rate}`,
-          `-minrate ${min_bit_rate}`,
+          `-crf 28`,
           "-threads 4",
           "-preset veryfast",
         ];
@@ -105,7 +105,7 @@ const ffmpegVideoEncodingHandler = async (
               .map(parseFloat);
             const totalSeconds = hours * 3600 + minutes * 60 + seconds;
             const percent = (totalSeconds / totalDuration) * 100;
-            console.log("Encoding progress:", percent.toFixed(2) + "%");
+           // console.log("Encoding progress:", percent.toFixed(2) + "%");
             // onProgress(percent.toFixed(2));
           }
         })
@@ -118,10 +118,10 @@ const ffmpegVideoEncodingHandler = async (
               reject(err);
               return;
             }
-            // console.log(
-            //   "Output video codec:",
-            //   data.streams.find((stream) => stream.codec_type === "video")
-            // );
+            console.log(
+              "Output video codec:",
+              data.streams.find((stream) => stream.codec_type === "video")
+            );
             resolve();
           });
         })
