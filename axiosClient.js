@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const axiosClient = axios.create({
-    baseURL: 'https://nb6y2cwyo7.execute-api.ap-south-1.amazonaws.com/prod/femto',
+    baseURL: 'https://6hvjwmwdp4wfznzh4evxqntkmq0ilmlh.lambda-url.ap-south-1.on.aws/femto',
     withCredentials: false,
 });
 

@@ -8,10 +8,16 @@ const sharp = require("sharp");
  */
 
 const sharpEncodingHandler = async (inputPath, outputPath) => {
+
+  const extension = outputPath.split(".").pop().toLowerCase();
+  let q = 80;
+  if (extension == "webp" || extension == "avif") {
+    q = 50;
+  }
+
   return new Promise((resolve, reject) => {
     sharp(inputPath)
-      //   .webp({ lossless : true })
-      .webp({ quality: 80 })
+      .webp({ quality: q })
       .toFile(outputPath, (error) => {
         if (error) {
           console.error("Error compressing image:", error);
